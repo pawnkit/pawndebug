@@ -1,0 +1,27 @@
+version: "3"
+
+tasks:
+  build:
+    cmds:
+      - go build ./cmd/pawndebug
+
+  test:
+    cmds:
+      - go test ./...
+
+  lint:
+    cmds:
+      - golangci-lint run ./...
+
+  security:
+    cmds:
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+  check:
+    cmds:
+      - test -z "$(gofumpt -l .)"
+      - go test ./...
+      - CGO_ENABLED=1 go test -race -shuffle=on ./...
+      - go vet ./...
+      - golangci-lint run ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
