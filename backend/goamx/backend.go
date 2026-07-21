@@ -21,10 +21,19 @@ type Backend struct {
 	state       amx.State
 	step        bool
 	skipOffset  int
+	arrays      map[int]arrayVariable
+	nextArray   int
+}
+
+type arrayVariable struct {
+	address amx.Cell
+	size    int
 }
 
 // New creates an empty backend.
-func New() *Backend { return &Backend{breakpoints: map[string]map[int]bool{}, skipOffset: -1} }
+func New() *Backend {
+	return &Backend{breakpoints: map[string]map[int]bool{}, skipOffset: -1, arrays: map[int]arrayVariable{}, nextArray: 2}
+}
 
 // Launch loads an AMX file and stops at its first instruction.
 func (backend *Backend) Launch(path string) error {
@@ -81,6 +90,8 @@ func (backend *Backend) hook(event amx.DebugEvent) error {
 		backend.step = false
 		backend.state = event.State
 		backend.location = debug.Frame{ID: 1, Name: function, Source: file, Line: line}
+		backend.arrays = map[int]arrayVariable{}
+		backend.nextArray = 2
 		if function == "" {
 			backend.location.Name = "AMX"
 		}
@@ -159,9 +170,17 @@ func (backend *Backend) Frames() []debug.Frame {
 func (backend *Backend) Variables(reference int) []debug.Variable {
 	backend.mu.Lock()
 	defer backend.mu.Unlock()
-	if reference != 1 || backend.runtime == nil || !backend.runtime.Suspended() {
+	if backend.runtime == nil || !backend.runtime.Suspended() {
 		return nil
 	}
+	if array, ok := backend.arrays[reference]; ok {
+		return backend.arrayValues(array)
+	}
+	if reference != 1 {
+		return nil
+	}
+	backend.arrays = map[int]arrayVariable{}
+	backend.nextArray = 2
 	values := []struct {
 		name  string
 		value amx.Cell
@@ -171,7 +190,7 @@ func (backend *Backend) Variables(reference int) []debug.Variable {
 		result = append(result, debug.Variable{Name: item.name, Value: strconv.FormatInt(int64(item.value), 10)})
 	}
 	for _, symbol := range backend.runtime.DebugInfo().Symbols {
-		if symbol.Ident != amx.SymbolVariable && symbol.Ident != amx.SymbolReference {
+		if symbol.Ident != amx.SymbolVariable && symbol.Ident != amx.SymbolReference && symbol.Ident != amx.SymbolArray && symbol.Ident != amx.SymbolRefArray {
 			continue
 		}
 		cip := int64(backend.state.CIP)
@@ -179,18 +198,51 @@ func (backend *Backend) Variables(reference int) []debug.Variable {
 			continue
 		}
 
-		if symbol.Address > math.MaxInt32 {
+		address, ok := backend.symbolAddress(symbol)
+		if !ok {
 			continue
 		}
-
-		address := amx.Cell(symbol.Address)
-		if symbol.Class == 1 {
-			address = backend.state.FRM + address
+		if symbol.Ident == amx.SymbolArray || symbol.Ident == amx.SymbolRefArray {
+			if len(symbol.Dimensions) != 1 || symbol.Dimensions[0].Size == 0 || symbol.Dimensions[0].Size > 4096 {
+				continue
+			}
+			reference := backend.nextArray
+			backend.nextArray++
+			backend.arrays[reference] = arrayVariable{address: address, size: int(symbol.Dimensions[0].Size)}
+			result = append(result, debug.Variable{Name: symbol.Name, Value: "array[" + strconv.Itoa(int(symbol.Dimensions[0].Size)) + "]", Type: "array", Reference: reference})
+			continue
 		}
 		value, err := backend.runtime.ReadCell(address)
 		if err == nil {
 			result = append(result, debug.Variable{Name: symbol.Name, Value: strconv.FormatInt(int64(value), 10)})
 		}
+	}
+	return result
+}
+
+func (backend *Backend) symbolAddress(symbol amx.DebugSymbol) (amx.Cell, bool) {
+	if symbol.Address > math.MaxInt32 {
+		return 0, false
+	}
+	address := amx.Cell(symbol.Address)
+	if symbol.Class == 1 {
+		address = backend.state.FRM + address
+	}
+	if symbol.Ident == amx.SymbolReference || symbol.Ident == amx.SymbolRefArray {
+		value, err := backend.runtime.ReadCell(address)
+		return value, err == nil
+	}
+	return address, true
+}
+
+func (backend *Backend) arrayValues(array arrayVariable) []debug.Variable {
+	result := make([]debug.Variable, 0, array.size)
+	for index := range array.size {
+		value, err := backend.runtime.ReadCell(array.address + amx.Cell(index*amx.CellBytes))
+		if err != nil {
+			break
+		}
+		result = append(result, debug.Variable{Name: "[" + strconv.Itoa(index) + "]", Value: strconv.FormatInt(int64(value), 10)})
 	}
 	return result
 }
@@ -225,6 +277,8 @@ func (backend *Backend) Disconnect() error {
 	backend.state = amx.State{}
 	backend.step = false
 	backend.skipOffset = -1
+	backend.arrays = map[int]arrayVariable{}
+	backend.nextArray = 2
 
 	return err
 }

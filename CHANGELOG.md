@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-07-21
+
+- Added expandable one-dimensional array variables.
+- Dereferenced scalar and array reference symbols correctly.
 
 ## 0.1.0 - 2026-07-20
 

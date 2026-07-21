@@ -13,7 +13,7 @@
 | `stepOut` | Partial | Advances one AMX instruction. |
 | `stackTrace` | Partial | Reports the current runtime frame. |
 | `scopes` | Yes | Reports one Pawn scope. |
-| `variables` | Partial | Registers and scalar debug symbols only. |
+| `variables` | Partial | Registers, scalars, and bounded one-dimensional arrays. |
 | `evaluate` | Partial | Reads PRI, ALT, HEA, STK, or FRM. |
 | `disconnect` | Yes | Closes the loaded runtime. |
 | `terminate` | Yes | Closes the loaded runtime. |

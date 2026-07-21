@@ -79,6 +79,19 @@ func TestSourceBreakpointStopsAtDebugLine(t *testing.T) {
 	if !found {
 		t.Fatalf("variables = %+v", variables)
 	}
+	var arrayReference int
+	for _, variable := range variables {
+		if variable.Name == "values" && variable.Value == "array[3]" {
+			arrayReference = variable.Reference
+		}
+	}
+	if arrayReference == 0 {
+		t.Fatalf("array variable missing: %+v", variables)
+	}
+	items := backend.Variables(arrayReference)
+	if len(items) != 3 || items[0].Name != "[0]" || items[2].Value != "0" {
+		t.Fatalf("array values = %+v", items)
+	}
 }
 
 func debugAMX() []byte {
@@ -89,7 +102,7 @@ func debugAMX() []byte {
 	chunk[6], chunk[7] = 8, 11
 	binary.LittleEndian.PutUint16(chunk[10:12], 1)
 	binary.LittleEndian.PutUint16(chunk[12:14], 1)
-	binary.LittleEndian.PutUint16(chunk[14:16], 2)
+	binary.LittleEndian.PutUint16(chunk[14:16], 3)
 	append32 := func(value uint32) {
 		var raw [4]byte
 		binary.LittleEndian.PutUint32(raw[:], value)
@@ -119,6 +132,15 @@ func debugAMX() []byte {
 	chunk = append(chunk, 1, 0)
 	append16(0)
 	appendName("score")
+	append32(4)
+	append16(0)
+	append32(0)
+	append32(16)
+	chunk = append(chunk, 3, 0)
+	append16(1)
+	appendName("values")
+	append16(0)
+	append32(3)
 	binary.LittleEndian.PutUint32(chunk[0:4], uint32(len(chunk)))
 	return append(data, chunk...)
 }

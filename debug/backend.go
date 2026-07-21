@@ -24,6 +24,7 @@ type Frame struct {
 type Variable struct {
 	Name      string `json:"name"`
 	Value     string `json:"value"`
+	Type      string `json:"type,omitempty"`
 	Reference int    `json:"variablesReference"`
 }
 
