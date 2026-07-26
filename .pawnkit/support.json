@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "repository": "pawnkit/pawndebug",
+  "maturity": "experimental",
+  "platforms": ["linux-amd64"],
+  "profiles": [],
+  "compilers": [],
+  "contracts": [],
+  "limitations": [
+    "Stepping and source mapping are not ready for general use.",
+    "Windows and macOS builds are not tested in this repository."
+  ]
+}

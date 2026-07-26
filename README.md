@@ -1,5 +1,7 @@
 # pawndebug
 
+[![Maturity: experimental](https://img.shields.io/badge/maturity-experimental-orange)](.pawnkit/support.json)
+
 `pawndebug` is a Debug Adapter Protocol server for Pawn AMX programs. Editors
 start it over stdio, then send the path to a compiled AMX file.
 
