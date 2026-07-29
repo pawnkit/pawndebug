@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-07-29
+
+- Updated goamx to fix AMX switch-table execution.
+
 ## 0.2.1 - 2026-07-25
 
 - Added the experimental support record with CI validation.
