@@ -39,7 +39,8 @@ names.
 
 The adapter can launch an AMX program, stop on source lines, continue, and step
 one instruction at a time. It exposes one runtime frame, scalar and
-one-dimensional array symbols, and the PRI, ALT, HEA, STK, and FRM registers.
+bounded array symbols, including nested dimensions, and the PRI, ALT, HEA, STK,
+and FRM registers.
 
 Step in, step over, and step out currently behave the same way. The adapter
 does not expose raw memory, disassembly, nested call frames, or native plugins.

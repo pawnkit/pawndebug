@@ -26,8 +26,8 @@ type Backend struct {
 }
 
 type arrayVariable struct {
-	address amx.Cell
-	size    int
+	address    amx.Cell
+	dimensions []int
 }
 
 // New creates an empty backend.
@@ -203,13 +203,14 @@ func (backend *Backend) Variables(reference int) []debug.Variable {
 			continue
 		}
 		if symbol.Ident == amx.SymbolArray || symbol.Ident == amx.SymbolRefArray {
-			if len(symbol.Dimensions) != 1 || symbol.Dimensions[0].Size == 0 || symbol.Dimensions[0].Size > 4096 {
+			dimensions, ok := arrayDimensions(symbol.Dimensions)
+			if !ok {
 				continue
 			}
 			reference := backend.nextArray
 			backend.nextArray++
-			backend.arrays[reference] = arrayVariable{address: address, size: int(symbol.Dimensions[0].Size)}
-			result = append(result, debug.Variable{Name: symbol.Name, Value: "array[" + strconv.Itoa(int(symbol.Dimensions[0].Size)) + "]", Type: "array", Reference: reference})
+			backend.arrays[reference] = arrayVariable{address: address, dimensions: dimensions}
+			result = append(result, debug.Variable{Name: symbol.Name, Value: arrayType(dimensions), Type: "array", Reference: reference})
 			continue
 		}
 		value, err := backend.runtime.ReadCell(address)
@@ -236,15 +237,59 @@ func (backend *Backend) symbolAddress(symbol amx.DebugSymbol) (amx.Cell, bool) {
 }
 
 func (backend *Backend) arrayValues(array arrayVariable) []debug.Variable {
-	result := make([]debug.Variable, 0, array.size)
-	for index := range array.size {
-		value, err := backend.runtime.ReadCell(array.address + amx.Cell(index*amx.CellBytes))
+	if len(array.dimensions) == 0 {
+		return nil
+	}
+	stride := 1
+	for _, size := range array.dimensions[1:] {
+		stride *= size
+	}
+	result := make([]debug.Variable, 0, array.dimensions[0])
+	for index := range array.dimensions[0] {
+		name := "[" + strconv.Itoa(index) + "]"
+		address := array.address + amx.Cell(index*stride*amx.CellBytes) //nolint:gosec // arrayDimensions caps this offset.
+		if len(array.dimensions) > 1 {
+			reference := backend.nextArray
+			backend.nextArray++
+			child := arrayVariable{address: address, dimensions: append([]int(nil), array.dimensions[1:]...)}
+			backend.arrays[reference] = child
+			result = append(result, debug.Variable{Name: name, Value: arrayType(child.dimensions), Type: "array", Reference: reference})
+			continue
+		}
+		value, err := backend.runtime.ReadCell(address)
 		if err != nil {
 			break
 		}
-		result = append(result, debug.Variable{Name: "[" + strconv.Itoa(index) + "]", Value: strconv.FormatInt(int64(value), 10)})
+		result = append(result, debug.Variable{Name: name, Value: strconv.FormatInt(int64(value), 10)})
 	}
 	return result
+}
+
+func arrayDimensions(dimensions []amx.DebugDimension) ([]int, bool) {
+	if len(dimensions) == 0 {
+		return nil, false
+	}
+	result := make([]int, len(dimensions))
+	total := 1
+	for index, dimension := range dimensions {
+		if dimension.Size == 0 || dimension.Size > 4096 || total > 4096/int(dimension.Size) {
+			return nil, false
+		}
+		result[index] = int(dimension.Size)
+		total *= result[index]
+	}
+	return result, true
+}
+
+func arrayType(dimensions []int) string {
+	var result strings.Builder
+	result.WriteString("array")
+	for _, size := range dimensions {
+		result.WriteByte('[')
+		result.WriteString(strconv.Itoa(size))
+		result.WriteByte(']')
+	}
+	return result.String()
 }
 
 // Evaluate reads a supported register.

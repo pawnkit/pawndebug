@@ -80,9 +80,13 @@ func TestSourceBreakpointStopsAtDebugLine(t *testing.T) {
 		t.Fatalf("variables = %+v", variables)
 	}
 	var arrayReference int
+	var matrixReference int
 	for _, variable := range variables {
 		if variable.Name == "values" && variable.Value == "array[3]" {
 			arrayReference = variable.Reference
+		}
+		if variable.Name == "matrix" && variable.Value == "array[2][2]" {
+			matrixReference = variable.Reference
 		}
 	}
 	if arrayReference == 0 {
@@ -91,6 +95,16 @@ func TestSourceBreakpointStopsAtDebugLine(t *testing.T) {
 	items := backend.Variables(arrayReference)
 	if len(items) != 3 || items[0].Name != "[0]" || items[2].Value != "0" {
 		t.Fatalf("array values = %+v", items)
+	}
+	if matrixReference == 0 {
+		t.Fatalf("multidimensional array missing: %+v", variables)
+	}
+	rows := backend.Variables(matrixReference)
+	if len(rows) != 2 || rows[0].Name != "[0]" || rows[0].Value != "array[2]" || rows[0].Reference == 0 {
+		t.Fatalf("matrix rows = %+v", rows)
+	}
+	if cells := backend.Variables(rows[0].Reference); len(cells) != 2 || cells[1].Name != "[1]" {
+		t.Fatalf("matrix cells = %+v", cells)
 	}
 }
 
@@ -102,7 +116,7 @@ func debugAMX() []byte {
 	chunk[6], chunk[7] = 8, 11
 	binary.LittleEndian.PutUint16(chunk[10:12], 1)
 	binary.LittleEndian.PutUint16(chunk[12:14], 1)
-	binary.LittleEndian.PutUint16(chunk[14:16], 3)
+	binary.LittleEndian.PutUint16(chunk[14:16], 4)
 	append32 := func(value uint32) {
 		var raw [4]byte
 		binary.LittleEndian.PutUint32(raw[:], value)
@@ -141,6 +155,17 @@ func debugAMX() []byte {
 	appendName("values")
 	append16(0)
 	append32(3)
+	append32(0)
+	append16(0)
+	append32(0)
+	append32(16)
+	chunk = append(chunk, 3, 0)
+	append16(2)
+	appendName("matrix")
+	append16(0)
+	append32(2)
+	append16(0)
+	append32(2)
 	binary.LittleEndian.PutUint32(chunk[0:4], uint32(len(chunk)))
 	return append(data, chunk...)
 }

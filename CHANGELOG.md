@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 - 2026-08-02
+
+- Added expandable multidimensional array variables.
+
 ## 0.2.2 - 2026-07-29
 
 - Updated goamx to fix AMX switch-table execution.
